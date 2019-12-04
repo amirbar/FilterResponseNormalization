@@ -1,24 +1,7 @@
-from keras.engine import Layer, InputSpec
-from keras import initializers
-from keras import regularizers
-from keras import constraints
-from keras import backend as K
 
-
-def FRNLayer(x, tau, beta, gamma, eps=1e-6):
-    # x: Input tensor of shape [BxHxWxC].
-    # alpha, beta, gamma: Variables of shape [1, 1, 1, C].
-    # eps: A scalar constant or learnable variable.
-    # Compute the mean norm of activations per channel.
-    nu2 = tf.reduce_mean(tf.square(x), axis=range(1, x.ndim-1), keepdims=True)
-    # Perform FRN.
-    x = x * tf.rsqrt(nu2 + tf.abs(eps))
-    # Return after applying the Offset-ReLU non-linearity.
-    return tf.maximum(gamma * x + beta, tau)
-
-
+# based on the following manuscript
+# https://arxiv.org/abs/1911.09737
 class FRN(Layer):
-
     def __init__(self,
                  axis=-1,
                  epsilon=1e-6,
@@ -32,6 +15,10 @@ class FRN(Layer):
                  gamma_constraint=None,
                  tau_constraint=None,
                  **kwargs):
+        '''
+        :param axis: channels axis
+        :param epsilon: for numeric stability
+        '''
         super(FRN, self).__init__(**kwargs)
         self.supports_masking = True
         self.axis = axis
@@ -78,8 +65,12 @@ class FRN(Layer):
 
         self.built = True
 
-    def call(self, inputs, **kwargs):
-        return FRNLayer(inputs, gamma=self.gamma, beta=self.beta, tau=self.tau)
+    def call(self, x, **kwargs):
+        nu2 = tf.reduce_mean(tf.square(x), axis=list(range(1, x.shape.ndims - 1)), keepdims=True)
+        # Perform FRN.
+        x = x * tf.rsqrt(nu2 + tf.abs(self.epsilon))
+        # Return after applying the Offset-ReLU non-linearity.
+        return tf.maximum(self.gamma * x + self.beta, self.tau)
 
     def get_config(self):
         config = {
