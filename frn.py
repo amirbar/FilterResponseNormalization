@@ -13,7 +13,7 @@ class FRN(Layer):
     def __init__(self,
                  axis=-1,
                  epsilon=1e-6,
-                 learnable_espilon=False,
+                 learnable_epsilon=False,
                  beta_initializer='zeros',
                  gamma_initializer='ones',
                  epsilon_l_initializer='zeros',
@@ -33,7 +33,7 @@ class FRN(Layer):
         self.supports_masking = True
         self.axis = axis
         self.epsilon = epsilon
-        self.learnable_epsilon = learnable_espilon
+        self.learnable_epsilon = learnable_epsilon
         self.beta_initializer = initializers.get(beta_initializer)
         self.gamma_initializer = initializers.get(gamma_initializer)
         self.epsilon_l_initializer = initializers.get(epsilon_l_initializer)
