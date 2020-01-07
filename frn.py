@@ -16,17 +16,16 @@ class FRN(Layer):
                  learnable_epsilon=False,
                  beta_initializer='zeros',
                  gamma_initializer='ones',
-                 epsilon_l_initializer='zeros',
                  beta_regularizer=None,
                  gamma_regularizer=None,
-                 epsilon_l_regularizer=None,
+                 epsilon_regularizer=None,
                  beta_constraint=None,
                  gamma_constraint=None,
-                 epsilon_l_constraint=None,
+                 epsilon_constraint=None,
                  **kwargs):
         '''
         :param axis: channels axis
-        :param epsilon: for numeric stability (should be set to 1e-4 if learnable, 1e-6 otherwise, cf. paper)
+        :param epsilon: for numeric stability (should be initialized to 1e-4 if learnable, or set to 1e-6 otherwise, cf. paper)
         :param learnable_epsilon: turn epsilon to trainable
         '''
         super(FRN, self).__init__(**kwargs)
@@ -36,13 +35,12 @@ class FRN(Layer):
         self.learnable_epsilon = learnable_epsilon
         self.beta_initializer = initializers.get(beta_initializer)
         self.gamma_initializer = initializers.get(gamma_initializer)
-        self.epsilon_l_initializer = initializers.get(epsilon_l_initializer)
         self.beta_regularizer = regularizers.get(beta_regularizer)
         self.gamma_regularizer = regularizers.get(gamma_regularizer)
-        self.epsilon_l_regularizer = regularizers.get(epsilon_l_regularizer)
+        self.epsilon_regularizer = regularizers.get(epsilon_regularizer)
         self.beta_constraint = constraints.get(beta_constraint)
         self.gamma_constraint = constraints.get(gamma_constraint)
-        self.epsilon_l_constraint = constraints.get(epsilon_l_constraint)
+        self.epsilon_constraint = constraints.get(epsilon_constraint)
 
     def build(self, input_shape):
         dim = input_shape[self.axis]
@@ -67,41 +65,35 @@ class FRN(Layer):
                                     initializer=self.beta_initializer,
                                     regularizer=self.beta_regularizer,
                                     constraint=self.beta_constraint)
-
-        if self.learnable_epsilon:
-            self.epsilon_l = self.add_weight(shape=(1,),
-                                             name='epsilon_l',
-                                             initializer=self.epsilon_l_initializer,
-                                             regularizer=self.epsilon_l_regularizer,
-                                             constraint=self.epsilon_l_constraint)
+        self.epsilon_l = self.add_weight(shape=(1,),
+                                         name='epsilon_l',
+                                         initializer=initializers.Constant(self.epsilon),
+                                         regularizer=self.epsilon_regularizer,
+                                         constraint=self.epsilon_constraint,
+                                         trainable=self.learnable_epsilon)
 
         self.built = True
 
     def call(self, x, **kwargs):
         nu2 = tf.reduce_mean(tf.square(x), axis=list(range(1, x.shape.ndims - 1)), keepdims=True)
 
-        if self.learnable_epsilon:
-            epsilon = self.epsilon + tf.abs(self.epsilon_l)
-        else:
-            epsilon = self.epsilon
-
         # Perform FRN.
-        x = x * tf.rsqrt(nu2 + tf.abs(epsilon))
+        x = x * tf.rsqrt(nu2 + tf.abs(self.epsilon_l))
 
         return self.gamma * x + self.beta
 
     def get_config(self):
         config = {
             'epsilon': self.epsilon,
+            'learnable_epsilon': self.learnable_epsilon,
             'beta_initializer': initializers.serialize(self.beta_initializer),
             'gamma_initializer': initializers.serialize(self.gamma_initializer),
-            'epsilon_l_initializer': initializers.serialize(self.epsilon_l_initializer),
             'beta_regularizer': regularizers.serialize(self.beta_regularizer),
             'gamma_regularizer': regularizers.serialize(self.gamma_regularizer),
-            'epsilon_l_regularizer': regularizers.serialize(self.epsilon_l_regularizer),
+            'epsilon_regularizer': regularizers.serialize(self.epsilon_regularizer),
             'beta_constraint': constraints.serialize(self.beta_constraint),
             'gamma_constraint': constraints.serialize(self.gamma_constraint),
-            'epsilon_l_constraint': constraints.serialize(self.epsilon_l_constraint),
+            'epsilon_constraint': constraints.serialize(self.epsilon_constraint),
         }
         base_config = super(FRN, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
